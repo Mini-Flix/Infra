@@ -1,166 +1,96 @@
-# 4/29 기록
+# MiniFLIX 인프라 상세 구성 가이드
 
-날짜: 2025년 4월 29일
+## 프로젝트 역할과 기여
 
-- 프로젝트 정리 및 발표 연습
-
-# 프로젝트 역할과 기여
-
-- 2개의 컴퓨터로 DMZ 단과 백 단 의 인프라 환경 구성
-- DMZ 단의 DNS 구성, 방화벽 구성, DMS 단과 백 단의 라우팅 구성, 로드벨런서 구성
-- 백 단의 인프라 환경 구축 및 구성, DNS 구성, 방화벽 구성, 라우팅 구성
-- 아키텍쳐 보완 및 재구성
+- 2개의 컴퓨터로 DMZ 단과 백 단의 인프라 환경 구성
+- DMZ 단의 DNS, 방화벽, 라우팅, 로드밸런서 구성
+- 백 단의 인프라 환경 구축 및 DNS, 방화벽, 라우팅 구성
+- 아키텍처 보완 및 재구성
 
 ## DMZ 단 구성
 
-### 1. 내부 DNS 서버 구성
+### 1. 내부 DNS 서버 설정
 
-- vi /var/named/mini.flix.db
-    
-    ![image.png](4%2029%20%E1%84%80%E1%85%B5%E1%84%85%E1%85%A9%E1%86%A8%201e45283b0f4a807cbce8d2dc63188424/image.png)
-    
-    - 도메인 주소를 mini.flix로 고정
-- vi /var/named/mini.flix.zones
-    
-    ![image.png](4%2029%20%E1%84%80%E1%85%B5%E1%84%85%E1%85%A9%E1%86%A8%201e45283b0f4a807cbce8d2dc63188424/image%201.png)
-    
-- vi /var/named/1.168.192.in-addr.arpa.db
-    
-    ![image.png](4%2029%20%E1%84%80%E1%85%B5%E1%84%85%E1%85%A9%E1%86%A8%201e45283b0f4a807cbce8d2dc63188424/image%202.png)
-    
+#### DNS 설정 파일 편집
+```bash
+vi /var/named/mini.flix.db
+vi /var/named/mini.flix.zones
+vi /var/named/1.168.192.in-addr.arpa.db
+```
 
-// systemctl restart named 
-
-- vi /etc/sysconfig/selinux
-    - SELINUX=disabled : SELinux 비활성화
-- vi /etc/sysconfig/network-scripts/ifcfg-ens160 (외부 인터페이스 카드)
-    
-    ![image.png](4%2029%20%E1%84%80%E1%85%B5%E1%84%85%E1%85%A9%E1%86%A8%201e45283b0f4a807cbce8d2dc63188424/image%203.png)
-    
-    - DNS1=192.168.1.1 (라우터 주소)
-    - DNS2=168.126.63.1
-
-// systemctl stop NetworkManager (트러블 슈팅때 restart로 초기화가 안됨)
-
-// systemctl start NetworkManager
+#### SELinux 비활성화
+```bash
+vi /etc/sysconfig/selinux
+# SELINUX=disabled 설정
+```
 
 ### 2. 방화벽 구성
 
-- firewalld로 방화벽 구성
-- 외부 인터페이스 ens160 , 내부 인터페이스 ens224로 구성
-    - 외부
-        
-        ![image.png](4%2029%20%E1%84%80%E1%85%B5%E1%84%85%E1%85%A9%E1%86%A8%201e45283b0f4a807cbce8d2dc63188424/image%204.png)
-        
-        - http(웹페이지 접속), mountd(NFS 마운트), nfs, rpc-bind(NFS 마운트, 외부통신), ssh
-    - 내부
-        
-        ![image.png](4%2029%20%E1%84%80%E1%85%B5%E1%84%85%E1%85%A9%E1%86%A8%201e45283b0f4a807cbce8d2dc63188424/image%205.png)
-        
-        - 9092/tcp 포트를 열어두어 백단에 로그를 전송할 수 있도록 함
-    - direct 규칙
-        
-        ![image.png](4%2029%20%E1%84%80%E1%85%B5%E1%84%85%E1%85%A9%E1%86%A8%201e45283b0f4a807cbce8d2dc63188424/image%206.png)
-        
-        - 트랜스 코딩 서버와 스트림 서버를 연동
-        - 상세한 네트워크 시나리오를 설정할 수 있음
+#### Firewalld 설정
+```bash
+# 외부 인터페이스 (ens160) 구성
+firewall-cmd --zone=external --list-all
+firewall-cmd --zone=external --add-service=http
+firewall-cmd --zone=external --add-service=mountd
+firewall-cmd --zone=external --add-service=nfs
+firewall-cmd --zone=external --add-service=rpc-bind
+firewall-cmd --zone=external --add-service=ssh
+```
 
 ### 3. 라우팅 구성
 
-- 192.168.0/24 요청이 들어오면 ens160인터페이스에 10.128.0.177 주소로 보내도록 설정
-    
-    ![image.png](4%2029%20%E1%84%80%E1%85%B5%E1%84%85%E1%85%A9%E1%86%A8%201e45283b0f4a807cbce8d2dc63188424/image%207.png)
-    
+```bash
+# 192.168.0/24 요청을 ens160 인터페이스의 10.128.0.177로 라우팅
+ip route add 192.168.0/24 via 10.128.0.177 dev ens160
+```
 
-### 4. 로드벨런서 구성
+### 4. 로드밸런서 구성
 
-- vi /etc/haproxy/haproxy.cfg
-    
-    ![image.png](4%2029%20%E1%84%80%E1%85%B5%E1%84%85%E1%85%A9%E1%86%A8%201e45283b0f4a807cbce8d2dc63188424/image%208.png)
-    
-    - 80번 포트로 들어오는 http 요청을 라운드로빈으로 두 웹서버에 교차하여 배정
+#### HAProxy 설정
+```bash
+vi /etc/haproxy/haproxy.cfg
+
+# 80번 포트 로드밸런싱 설정
+frontend http-in
+    bind *:80
+    default_backend web-servers
+
+backend web-servers
+    balance roundrobin
+    server web01 192.168.1.103:80 check
+    server web02 192.168.1.106:80 check
+```
 
 ## 백 단 구성
 
-### 1. 인프라 환경 구축 및 구성
+### 1. 인프라 환경 구축
 
-- vi /etc/dhcp/dhcpd.conf
-    
-    ![image.png](4%2029%20%E1%84%80%E1%85%B5%E1%84%85%E1%85%A9%E1%86%A8%201e45283b0f4a807cbce8d2dc63188424/image%209.png)
-    
-    - DHCP 서버 구성
-    - name서버 설정
+#### DHCP 서버 구성
+```bash
+vi /etc/dhcp/dhcpd.conf
+
+# DHCP 설정 예시
+subnet 192.168.0.0 netmask 255.255.255.0 {
+    range 192.168.0.100 192.168.0.200;
+    option routers 192.168.0.1;
+    option domain-name-servers 192.168.0.104, 8.8.8.8;
+}
+```
 
 ### 2. DNS 구성
 
-- vi /var/named/mini.flix.db
-    
-    ![image.png](4%2029%20%E1%84%80%E1%85%B5%E1%84%85%E1%85%A9%E1%86%A8%201e45283b0f4a807cbce8d2dc63188424/image%2010.png)
-    
-    - 도메인 주소를 mini.flix로 고정
-- vi /var/named/mini.flix.zones
-    
-    ![image.png](4%2029%20%E1%84%80%E1%85%B5%E1%84%85%E1%85%A9%E1%86%A8%201e45283b0f4a807cbce8d2dc63188424/image%2011.png)
-    
-- vi /var/named/0.168.192.in-addr.arpa.db
-    
-    ![image.png](4%2029%20%E1%84%80%E1%85%B5%E1%84%85%E1%85%A9%E1%86%A8%201e45283b0f4a807cbce8d2dc63188424/image%2012.png)
-    
+```bash
+vi /var/named/mini.flix.db
+vi /var/named/mini.flix.zones
+vi /var/named/0.168.192.in-addr.arpa.db
 
-// systemctl restart named 
+# DNS 서비스 재시작
+systemctl restart named
+```
 
-- vi /etc/sysconfig/network-scripts/ifcfg-ens160 (외부 인터페이스 카드)
-    
-    ![image.png](4%2029%20%E1%84%80%E1%85%B5%E1%84%85%E1%85%A9%E1%86%A8%201e45283b0f4a807cbce8d2dc63188424/image%2013.png)
-    
-    - DNS1=192.168.0.104 (라우터 주소)
-    - DNS2=8.8.8.8
+## 아키텍처 개선 사항
 
-// systemctl stop NetworkManager (트러블 슈팅때 restart로 초기화가 안됨)
-
-// systemctl start NetworkManager
-
-### 3. 방화벽 구성
-
-- firewalld로 방화벽 구성
-    - 외부
-        
-        ![image.png](4%2029%20%E1%84%80%E1%85%B5%E1%84%85%E1%85%A9%E1%86%A8%201e45283b0f4a807cbce8d2dc63188424/image%2014.png)
-        
-    - 내부
-        
-        ![image.png](4%2029%20%E1%84%80%E1%85%B5%E1%84%85%E1%85%A9%E1%86%A8%201e45283b0f4a807cbce8d2dc63188424/image%2015.png)
-        
-    - direct 규칙
-        
-        ![image.png](4%2029%20%E1%84%80%E1%85%B5%E1%84%85%E1%85%A9%E1%86%A8%201e45283b0f4a807cbce8d2dc63188424/image%2016.png)
-        
-        - 1,2 줄 : 로그스트림 허용
-        - 3, 4줄 : 트랜스코딩 서버와 스트리밍 서버 연결
-        - 5, 6줄 : NFS 포트 개방
-
-### 4. 라우팅 구성
-
-- ip route
-    
-    ![image.png](4%2029%20%E1%84%80%E1%85%B5%E1%84%85%E1%85%A9%E1%86%A8%201e45283b0f4a807cbce8d2dc63188424/image%2017.png)
-    
-    - 192.168.1.0/24 주소는 10.128.0.66의 DMZ 단의 라우터로 보냄
-
-## 아키텍쳐 보완 및 재구성
-
-### 기존의 아키텍쳐
-
-![image.png](4%2029%20%E1%84%80%E1%85%B5%E1%84%85%E1%85%A9%E1%86%A8%201e45283b0f4a807cbce8d2dc63188424/image%2018.png)
-
-### 수정한 아키텍쳐
-
-![image.png](4%2029%20%E1%84%80%E1%85%B5%E1%84%85%E1%85%A9%E1%86%A8%201e45283b0f4a807cbce8d2dc63188424/image%2019.png)
-
-### 수정 내용
-
-1. 첫 번째 인프라 설계 시점에서는 각 서버를 스위치를 통해 연결할 수 있다고 판단하였지만 상황상 불가능
-    1. 물리적으로 연결돼있지 않아 bridge로 연결된 2대의 pc 사용하는 아키텍쳐로 변경
-2. 각 pc를 다른 색으로 표현하여 가시성 향상
-3. haproxy 서버의 로드벨런싱 표현
-4. 백단의 각 분야별 책임 소재 범위 제한
+1. 물리적 제약으로 인해 스위치 대신 브리지로 연결된 2대의 PC 아키텍처로 변경
+2. 각 PC를 다른 색상으로 표현하여 가시성 향상
+3. HAProxy 서버의 로드밸런싱 표현
+4. 백엔드의 각 분야별 책임 소재 범위 제한
