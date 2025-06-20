@@ -28,7 +28,7 @@
 <br>
 
 ## ☁️ 전체 아키텍처 개요
-![img](miniflix2-동영상 파일 업로드 흐름도.png)
+![img](infra_diagram.png)
 - **프론트엔드**: Vue.js 앱을 `S3 + CloudFront`에 정적 웹사이트로 배포
 - **백엔드**: Spring Boot API 서버 → EC2에 배포 → Target Group 구성 → ALB → CloudFront에서 `/api/*`로 라우팅
 - **스트리밍**: OpenStack VM에서 FFmpeg로 변환된 `.m3u8` 영상 → S3 업로드 → CloudFront 통해 스트리밍 제공
