@@ -3,7 +3,7 @@
 > 퍼블릭(AWS)과 프라이빗(OpenStack) 클라우드를 연계한 실무형 **하이브리드 클라우드 아키텍처 설계 및 구축 프로젝트**
 
 ![web](homepage.png)
-
+![video](video.png)
 <br>
 <br>
 
