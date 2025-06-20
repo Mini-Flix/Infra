@@ -69,13 +69,6 @@
 - 결과 파일을 S3의 스트리밍 버킷에 업로드하는 **자동화 스크립트** 작성
 - CloudFront를 통해 `.m3u8` 영상 스트리밍 제공
 
-### ✅ DB 고가용성 구성
-- HAProxy + Patroni로 PostgreSQL 클러스터 구성
-- 마스터 장애 시 자동 Failover 가능하도록 설정
-
-### ✅ 로그 파이프라인 구성
-- Kafka에서 로그 수집 → Logstash에서 파싱 및 가공 → Elasticsearch 저장
-- Kibana에서 실시간 로그 시각화 대시보드 구축
 
 <br>
 <br>
